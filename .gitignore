@@ -1,3 +1,4 @@
 *.pyc
 .idea
 hpxml2reso.cfg
+cache/

@@ -7,6 +7,7 @@ import re
 import string
 from collections import OrderedDict
 import datetime as dt
+import shelve
 
 from lxml import etree
 import requests
@@ -16,6 +17,12 @@ configfile = os.path.join(thisdir, 'hpxml2reso.cfg')
 config = ConfigParser.RawConfigParser()
 config.read(configfile)
 
+cachedir = os.path.join(thisdir, 'cache')
+if not os.path.exists(cachedir):
+    os.mkdir(cachedir)
+gmaps_shelf = shelve.open(os.path.join(cachedir, 'gmaps'))
+tamu_shelf = shelve.open(os.path.join(cachedir, 'tamu'))
+
 ns = {'h': 'http://hpxmlonline.com/2014/6'}
 
 
@@ -24,11 +31,14 @@ class GeolocationError(Exception):
 
 
 def get_google_address(address, city, state, zip_code):
+    joined_address = str(' '.join([address, city, state, zip_code]))
+    if gmaps_shelf.has_key(joined_address):
+        return gmaps_shelf[joined_address]
     google_maps_key = config.get('GoogleMaps', 'key')
     gmaps_geolocation_url = 'https://maps.googleapis.com/maps/api/geocode/json'
     params = {
         'key': google_maps_key,
-        'address': ' '.join([address, city, state, zip_code])
+        'address': joined_address
     }
     res = requests.get(gmaps_geolocation_url, params=params)
     resjson = res.json()
@@ -36,10 +46,15 @@ def get_google_address(address, city, state, zip_code):
         raise GeolocationError('{} - {}'.format(resjson['status'], resjson.get('error_message', '')))
     if not len(resjson['results']) == 1:
         raise GeolocationError('Could not find single location for address: {address}'.format(params))
-    return resjson['results'][0]
+    outaddr = resjson['results'][0]
+    gmaps_shelf[joined_address] = outaddr
+    return outaddr
 
 
 def get_tamu_address_normalization(address, city, state, zip_code):
+    joined_address = str(' '.join([address, city, state, zip_code]))
+    if tamu_shelf.has_key(joined_address):
+        return tamu_shelf[joined_address]
     tamu_key = config.get('TAMUGeoServices', 'key')
     url = 'http://geoservices.tamu.edu/Services/AddressNormalization/WebService/v04_01/Rest/'
     params = {
@@ -57,7 +72,9 @@ def get_tamu_address_normalization(address, city, state, zip_code):
         raise GeolocationError('{}'.format(resjson['QueryStatusCode']))
     if not len(resjson['StreetAddresses']):
         raise GeolocationError('Could not find single location for address: {} {} {} {}'.format(address, city, state, zip_code))
-    return resjson['StreetAddresses'][0]
+    outaddr = resjson['StreetAddresses'][0]
+    tamu_shelf[joined_address] = outaddr
+    return outaddr
 
 
 def get_single_xpath_item(el, xpathexpr, astype=None, **kwargs):
@@ -103,18 +120,19 @@ def hpxml2reso(file_in, bldg_id=None):
     zip_code = address_xml.xpath('h:ZipCode/text()', namespaces=ns)[0]
 
     # It could be potentially useful to use Google Maps API to check the address exists here and clean it up.
-    # google_address = get_google_address(address, city, state, zip_code)
-    # for item in google_address['address_components']:
-    #     if 'street_number' in item['types']:
-    #         address = item['long_name']
-    #     elif 'route' in item['types']:
-    #         address += ' ' + item['long_name']
-    #     elif 'locality' in item['types']:
-    #         city = item['long_name']
-    #     elif 'administrative_area_level_1' in item['types']:
-    #         state = item['short_name']
-    #     elif 'postal_code' in item['types']:
-    #         zip_code = item['long_name']
+    # Comment this block out if you're pretty sure your addresses are good.
+    google_address = get_google_address(address, city, state, zip_code)
+    for item in google_address['address_components']:
+        if 'street_number' in item['types']:
+            address = item['long_name']
+        elif 'route' in item['types']:
+            address += ' ' + item['long_name']
+        elif 'locality' in item['types']:
+            city = item['long_name']
+        elif 'administrative_area_level_1' in item['types']:
+            state = item['short_name']
+        elif 'postal_code' in item['types']:
+            zip_code = item['long_name']
 
     # Use Texas A&M's address normalization service to split out all the parts.
     # Their API does a great job of splitting the address up accurately, but doesn't check it against a database
