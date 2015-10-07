@@ -135,7 +135,7 @@ def hpxml2reso(file_in, bldg_id=None):
 
     reso['LivingArea'] = get_single_xpath_item(bldg, 'descendant::h:BuildingConstruction/h:ConditionedFloorArea/text()', float)
     reso['LivingAreaUnits'] = 'Square Feet'
-    reso['LivingAreaSource'] = '????'
+    reso['LivingAreaSource'] = None
 
     # WalkScore
     walkscore_els = bldg.xpath(
@@ -218,9 +218,12 @@ def hpxml2reso(file_in, bldg_id=None):
             efficiency = '{:.0f}'.format(efficiency)
         if eff_units == 'Percent':
             eff_units = '% Efficient'
-        else:
+        elif eff_units is not None:
             eff_units = ' ' + eff_units
-        reso['Heating'] = '{} Heat Pump, {}{}'.format(heat_pump_type, efficiency, eff_units)
+        if efficiency is None or eff_units is None:
+            reso['Heating'] = '{} Heat Pump'.format(heat_pump_type)
+        else:
+            reso['Heating'] = '{} Heat Pump, {}{}'.format(heat_pump_type, efficiency, eff_units)
     elif htg_sys_el_name == 'HeatingSystem':
         htg_sys_type = htgsys.xpath('name(h:HeatingSystemType/h:*)', namespaces=ns)
         # Add spaces between words of the heating system type.
@@ -243,9 +246,12 @@ def hpxml2reso(file_in, bldg_id=None):
             efficiency = '{:.0f}'.format(efficiency)
         if eff_units == 'Percent':
             eff_units = '% Efficient'
-        else:
+        elif eff_units is not None:
             eff_units = ' ' + eff_units
-        reso['Heating'] = '{1} {0}, {2}{3}'.format(htg_sys_type, fuel, efficiency, eff_units)
+        if eff_units is None or efficiency is None:
+            reso['Heating'] = '{1} {0}'.format(htg_sys_type, fuel)
+        else:
+            reso['Heating'] = '{1} {0}, {2}{3}'.format(htg_sys_type, fuel, efficiency, eff_units)
     else:
         assert False
 
@@ -304,13 +310,19 @@ def hpxml2reso(file_in, bldg_id=None):
         heat_pump_type = string.capwords(heat_pump_type)
         efficiency = get_single_xpath_item(clgsys, 'h:AnnualCoolEfficiency[1]/h:Value/text()')
         eff_units = get_single_xpath_item(clgsys, 'h:AnnualCoolEfficiency[1]/h:Units/text()')
-        reso['Cooling'] = '{} Heat Pump, {} {}'.format(heat_pump_type, efficiency, eff_units)
+        if efficiency is None or eff_units is None:
+            reso['Cooling'] = '{} Heat Pump'.format(heat_pump_type)
+        else:
+            reso['Cooling'] = '{} Heat Pump, {} {}'.format(heat_pump_type, efficiency, eff_units)
     elif clg_sys_el_name == 'CoolingSystem':
         clg_sys_type = get_single_xpath_item(clgsys, 'h:CoolingSystemType/text()')
         clg_sys_type = string.capwords(clg_sys_type)
         efficiency = get_single_xpath_item(clgsys, 'h:AnnualCoolingEfficiency[1]/h:Value/text()', float)
         eff_units = get_single_xpath_item(clgsys, 'h:AnnualCoolingEfficiency[1]/h:Units/text()')
-        reso['Cooling'] = '{}, {:.0f} {}'.format(clg_sys_type, efficiency, eff_units)
+        if efficiency is None or eff_units is None:
+            reso['Cooling'] = clg_sys_type
+        else:
+            reso['Cooling'] = '{}, {:.0f} {}'.format(clg_sys_type, efficiency, eff_units)
     else:
         assert False
 
