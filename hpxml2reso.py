@@ -320,8 +320,9 @@ def main():
     parser.add_argument('infile', type=argparse.FileType('rU'))
     parser.add_argument('-o', '--outfile', type=argparse.FileType('wb'), default=sys.stdout)
     parser.add_argument('--bldg_id', type=str, default=None)
+    parser.add_argument('--googlemaps', action='store_true')
     args = parser.parse_args()
-    reso = hpxml2reso(args.infile, args.bldg_id)
+    reso = hpxml2reso(args.infile, bldg_id=args.bldg_id, google_maps_lookup=args.googlemaps)
     json.dump(reso, args.outfile, indent=4)
 
 
