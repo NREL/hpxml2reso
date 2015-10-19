@@ -318,9 +318,12 @@ def hpxml2reso(file_in, bldg_id=None, google_maps_lookup=False):
 def main():
     parser = argparse.ArgumentParser('Convert HPXML to RESO-ish json')
     parser.add_argument('infile', type=argparse.FileType('rU'))
-    parser.add_argument('-o', '--outfile', type=argparse.FileType('wb'), default=sys.stdout)
-    parser.add_argument('--bldg_id', type=str, default=None)
-    parser.add_argument('--googlemaps', action='store_true')
+    parser.add_argument('-o', '--outfile', type=argparse.FileType('wb'), default=sys.stdout,
+                        help='json file to write output to, default stdout')
+    parser.add_argument('--bldg_id', type=str, default=None,
+                        help='HPXML BuildingID to translate, default first one')
+    parser.add_argument('--googlemaps', action='store_true',
+                        help='Use Google Maps API to look up the address in the HPXML file.')
     args = parser.parse_args()
     reso = hpxml2reso(args.infile, bldg_id=args.bldg_id, google_maps_lookup=args.googlemaps)
     json.dump(reso, args.outfile, indent=4)
