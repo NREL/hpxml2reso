@@ -90,11 +90,13 @@ def get_single_xpath_item(el, xpathexpr, astype=None, **kwargs):
         assert False
 
 
-def hpxml2reso(file_in, bldg_id=None):
+def hpxml2reso(file_in, bldg_id=None, google_maps_lookup=False):
     """
     Convert an HPXML file into a dict of RESO fields
 
     :param file_in: file handle or filename of HPXML file
+    :param bldg_id: id of the building in the HPXML file, default first one
+    :param google_maps_lookup: boolean, if yes, it looks up and normalizes address using the Google Maps API.
     :return: dict of RESO fields
     """
 
@@ -119,20 +121,20 @@ def hpxml2reso(file_in, bldg_id=None):
     state = address_xml.xpath('h:StateCode/text()', namespaces=ns)[0]
     zip_code = address_xml.xpath('h:ZipCode/text()', namespaces=ns)[0]
 
-    # It could be potentially useful to use Google Maps API to check the address exists here and clean it up.
-    # Comment this block out if you're pretty sure your addresses are good.
-    google_address = get_google_address(address, city, state, zip_code)
-    for item in google_address['address_components']:
-        if 'street_number' in item['types']:
-            address = item['long_name']
-        elif 'route' in item['types']:
-            address += ' ' + item['long_name']
-        elif 'locality' in item['types']:
-            city = item['long_name']
-        elif 'administrative_area_level_1' in item['types']:
-            state = item['short_name']
-        elif 'postal_code' in item['types']:
-            zip_code = item['long_name']
+    # If requested, check the Google Maps API to check the address exists here and clean it up.
+    if google_maps_lookup:
+        google_address = get_google_address(address, city, state, zip_code)
+        for item in google_address['address_components']:
+            if 'street_number' in item['types']:
+                address = item['long_name']
+            elif 'route' in item['types']:
+                address += ' ' + item['long_name']
+            elif 'locality' in item['types']:
+                city = item['long_name']
+            elif 'administrative_area_level_1' in item['types']:
+                state = item['short_name']
+            elif 'postal_code' in item['types']:
+                zip_code = item['long_name']
 
     # Use Texas A&M's address normalization service to split out all the parts.
     # Their API does a great job of splitting the address up accurately, but doesn't check it against a database
