@@ -180,172 +180,137 @@ def hpxml2reso(file_in, bldg_id=None, google_maps_lookup=False):
         hescore['URL'] = None
 
     # Heating
-    # See if there's a specified primary system
-    htgsys = get_single_xpath_item(
-        bldg,
-        'descendant::*[h:SystemIdentifier/@id=//h:Building[h:BuildingID/@id=$bldg_id]/descendant::h:PrimaryHeatingSystem/@idref]',
-        bldg_id=bldg_id
-    )
-    # If not, get all of the heating systems (HeatingSystem and HeatPump)
-    if htgsys is None:
-        htgsys = bldg.xpath('descendant::h:HeatingSystem|descendant::h:HeatPump', namespaces=ns)
-        if len(htgsys) == 1:
+    # Get all of the heating systems (HeatingSystem and HeatPump)
+    htg_els = bldg.xpath('descendant::h:HeatingSystem|descendant::h:HeatPump', namespaces=ns)
+    all_htg_sys_metrics = []
+    for htg_el in htg_els:
 
-            # If there's only one, use that.
-            htgsys = htgsys[0]
+        htg_sys_metrics = {}
+        htg_sys_metrics['el'] = htg_el
+        htg_sys_metrics['frac_load_served'] = get_single_xpath_item(htg_el, 'h:FractionHeatLoadServed/text()', float)
+        htg_sys_metrics['floor_area_served'] = get_single_xpath_item(htg_el, 'h:FloorAreaServed/text()', float)
+        htg_sys_metrics['capacity'] = get_single_xpath_item(htg_el, 'h:HeatingCapacity/text()', float)
+        all_htg_sys_metrics.append(htg_sys_metrics)
 
-        else:
+    # Find out which sorting metric all of the systems have
+    sort_order_precedence = ['frac_load_served', 'floor_area_served', 'capacity']
+    for sort_col in sort_order_precedence:
+        has_all_sort_col = True
+        for htg_sys_metrics in all_htg_sys_metrics:
+            if htg_sys_metrics[sort_col] is None:
+                has_all_sort_col = False
+                break
+        if has_all_sort_col:
+            break
 
-            # If there's more than one, get some metrics about each to decide which is the primary
-            all_htg_sys_metrics = []
-            for htg_el in htgsys:
-                htg_sys_metrics = {}
-                htg_sys_metrics['id'] = htg_el.xpath('h:SystemIdentifier/@id', namespaces=ns)[0]
-                htg_sys_metrics['frac_load_served'] = get_single_xpath_item(htg_el, 'h:FractionHeatLoadServed/text()', float)
-                htg_sys_metrics['floor_area_served'] = get_single_xpath_item(htg_el, 'h:FloorAreaServed/text()', float)
-                htg_sys_metrics['capacity'] = get_single_xpath_item(htg_el, 'h:HeatingCapacity/text()', float)
-                all_htg_sys_metrics.append(htg_sys_metrics)
+    if has_all_sort_col:
+        # sort the systems, largest to smallest
+        htg_els = [y['el'] for y in sorted(all_htg_sys_metrics, key=lambda x: x[sort_col], reverse=True)]
 
-            # Find out which sorting metric all of the systems have
-            sort_order_precedence = ['frac_load_served', 'floor_area_served', 'capacity']
-            for sort_col in sort_order_precedence:
-                has_all_sort_col = True
-                for htg_sys_metrics in all_htg_sys_metrics:
-                    if htg_sys_metrics[sort_col] is None:
-                        has_all_sort_col = False
-                        break
-                if has_all_sort_col:
-                    break
+    reso['Heating'] = []
+    for htg_el in htg_els:
 
-            if not has_all_sort_col:
-                # If there's no common metric to sort them by, pick the first one.
-                htg_id = all_htg_sys_metrics[0]['id']
+        # Get the efficiency information about the heating system
+        htg_sys_el_name = htg_el.xpath('name()', namespaces=ns)
+        if htg_sys_el_name == 'HeatPump':
+            heat_pump_type = get_single_xpath_item(htg_el, 'h:HeatPumpType/text()')
+            heat_pump_type = string.capwords(heat_pump_type)
+            efficiency = get_single_xpath_item(htg_el, 'h:AnnualHeatEfficiency[1]/h:Value/text()')
+            eff_units = get_single_xpath_item(htg_el, 'h:AnnualHeatEfficiency[1]/h:Units/text()')
+            if eff_units in ('AFUE', 'Percent'):
+                efficiency *= 100
+                efficiency = '{:.0f}'.format(efficiency)
+            if eff_units == 'Percent':
+                eff_units = '% Efficient'
+            elif eff_units is not None:
+                eff_units = ' ' + eff_units
+            if efficiency is None or eff_units is None:
+                reso['Heating'].append('{} Heat Pump'.format(heat_pump_type))
             else:
-                # Otherwise, find the primary system by sorting by the appropriate metric
-                htg_id = sorted(all_htg_sys_metrics, key=lambda x: x[sort_col], reverse=True)[0]['id']
-
-            htgsys = bldg.xpath('descendant::h:*[h:SystemIdentifier/@id=$htg_id]', namespaces=ns, htg_id=htg_id)[0]
-
-    # Get the efficiency information about the heating system
-    htg_sys_el_name = htgsys.xpath('name()', namespaces=ns)
-    if htg_sys_el_name == 'HeatPump':
-        heat_pump_type = get_single_xpath_item(htgsys, 'h:HeatPumpType/text()')
-        heat_pump_type = string.capwords(heat_pump_type)
-        efficiency = get_single_xpath_item(htgsys, 'h:AnnualHeatEfficiency[1]/h:Value/text()')
-        eff_units = get_single_xpath_item(htgsys, 'h:AnnualHeatEfficiency[1]/h:Units/text()')
-        if eff_units in ('AFUE', 'Percent'):
-            efficiency *= 100
-            efficiency = '{:.0f}'.format(efficiency)
-        if eff_units == 'Percent':
-            eff_units = '% Efficient'
-        elif eff_units is not None:
-            eff_units = ' ' + eff_units
-        if efficiency is None or eff_units is None:
-            reso['Heating'] = '{} Heat Pump'.format(heat_pump_type)
+                reso['Heating'].append('{} Heat Pump, {}{}'.format(heat_pump_type, efficiency, eff_units))
+        elif htg_sys_el_name == 'HeatingSystem':
+            htg_sys_type = htg_el.xpath('name(h:HeatingSystemType/h:*)', namespaces=ns)
+            # Add spaces between words of the heating system type.
+            htg_sys_type = re.sub(r'([a-z])([A-Z])', r'\1 \2', htg_sys_type)
+            if htg_sys_type == 'Electric Resistance':
+                htg_sys_type = get_single_xpath_item(htg_el, 'h:HeatingSystemType/h:ElectricResistance/h:ElectricDistribution/text()')
+                htg_sys_type = string.capwords(htg_sys_type)
+            elif htg_sys_type == 'District Steam':
+                htg_sys_type = get_single_xpath_item(htg_el, 'h:HeatingSystemType/h:DistrictSteam/h:DistrictSteamType/text()')
+            fuel = string.capwords(htg_el.xpath('h:HeatingSystemFuel/text()', namespaces=ns)[0])
+            fuel = fuel.replace('Electricity', 'Electric')
+            if fuel.find('Fuel Oil') > -1:
+                fuel = 'Fuel Oil'
+            elif fuel.find('Coal') > -1:
+                fuel = 'Coal'
+            efficiency = get_single_xpath_item(htg_el, 'h:AnnualHeatingEfficiency[1]/h:Value/text()', float)
+            eff_units = get_single_xpath_item(htg_el, 'h:AnnualHeatingEfficiency[1]/h:Units/text()')
+            if eff_units in ('AFUE', 'Percent'):
+                efficiency *= 100
+                efficiency = '{:.0f}'.format(efficiency)
+            if eff_units == 'Percent':
+                eff_units = '% Efficient'
+            elif eff_units is not None:
+                eff_units = ' ' + eff_units
+            if eff_units is None or efficiency is None:
+                reso['Heating'].append('{1} {0}'.format(htg_sys_type, fuel))
+            else:
+                reso['Heating'].append('{1} {0}, {2}{3}'.format(htg_sys_type, fuel, efficiency, eff_units))
         else:
-            reso['Heating'] = '{} Heat Pump, {}{}'.format(heat_pump_type, efficiency, eff_units)
-    elif htg_sys_el_name == 'HeatingSystem':
-        htg_sys_type = htgsys.xpath('name(h:HeatingSystemType/h:*)', namespaces=ns)
-        # Add spaces between words of the heating system type.
-        htg_sys_type = re.sub(r'([a-z])([A-Z])', r'\1 \2', htg_sys_type)
-        if htg_sys_type == 'Electric Resistance':
-            htg_sys_type = get_single_xpath_item(htgsys, 'h:HeatingSystemType/h:ElectricResistance/h:ElectricDistribution/text()')
-            htg_sys_type = string.capwords(htg_sys_type)
-        elif htg_sys_type == 'District Steam':
-            htg_sys_type = get_single_xpath_item(htgsys, 'h:HeatingSystemType/h:DistrictSteam/h:DistrictSteamType/text()')
-        fuel = string.capwords(htgsys.xpath('h:HeatingSystemFuel/text()', namespaces=ns)[0])
-        fuel = fuel.replace('Electricity', 'Electric')
-        if fuel.find('Fuel Oil') > -1:
-            fuel = 'Fuel Oil'
-        elif fuel.find('Coal') > -1:
-            fuel = 'Coal'
-        efficiency = get_single_xpath_item(htgsys, 'h:AnnualHeatingEfficiency[1]/h:Value/text()', float)
-        eff_units = get_single_xpath_item(htgsys, 'h:AnnualHeatingEfficiency[1]/h:Units/text()')
-        if eff_units in ('AFUE', 'Percent'):
-            efficiency *= 100
-            efficiency = '{:.0f}'.format(efficiency)
-        if eff_units == 'Percent':
-            eff_units = '% Efficient'
-        elif eff_units is not None:
-            eff_units = ' ' + eff_units
-        if eff_units is None or efficiency is None:
-            reso['Heating'] = '{1} {0}'.format(htg_sys_type, fuel)
-        else:
-            reso['Heating'] = '{1} {0}, {2}{3}'.format(htg_sys_type, fuel, efficiency, eff_units)
-    else:
-        assert False
+            assert False
 
     # Cooling
-    # See if there's a specified primary system
-    clgsys = get_single_xpath_item(
-        bldg,
-        'descendant::*[h:SystemIdentifier/@id=//h:Building[h:BuildingID/@id=$bldg_id]/descendant::h:PrimaryCoolingSystem/@idref]',
-        bldg_id=bldg_id
-    )
+    # Get all of the cooling systems (CoolingSystem and HeatPump)
+    clg_els = bldg.xpath('descendant::h:CoolingSystem|descendant::h:HeatPump', namespaces=ns)
 
-    # If not, get all of the heating systems (CoolingSystem and HeatPump)
-    if clgsys is None:
-        clgsys = bldg.xpath('descendant::h:CoolingSystem|descendant::h:HeatPump', namespaces=ns)
-        if len(clgsys) == 1:
+    # Get some metrics about each to decide which to sort by
+    all_clg_sys_metrics = []
+    for clg_el in clg_els:
+        clg_sys_metrics = {}
+        clg_sys_metrics['el'] = clg_el
+        clg_sys_metrics['frac_load_served'] = get_single_xpath_item(clg_el, 'h:FractionCoolLoadServed/text()', float)
+        clg_sys_metrics['floor_area_served'] = get_single_xpath_item(clg_el, 'h:FloorAreaServed/text()', float)
+        clg_sys_metrics['capacity'] = get_single_xpath_item(clg_el, 'h:CoolingCapacity/text()', float)
+        all_clg_sys_metrics.append(clg_sys_metrics)
 
-            # If there's ony one, use that.
-            clgsys = clgsys[0]
+    # Find out which sorting metric all of the systems have
+    sort_order_precedence = ['frac_load_served', 'floor_area_served', 'capacity']
+    for sort_col in sort_order_precedence:
+        has_all_sort_col = True
+        for clg_sys_metrics in all_clg_sys_metrics:
+            if clg_sys_metrics[sort_col] is None:
+                has_all_sort_col = False
+                break
+        if has_all_sort_col:
+            break
 
-        else:
+    if has_all_sort_col:
+        clg_els = [y['el'] for y in sorted(all_clg_sys_metrics, key=lambda x: x[sort_col], reverse=True)]
 
-            # If there's more than one, get some metrics about each to decide which is the primary
-            all_clg_sys_metrics = []
-            for clg_el in clgsys:
-                clg_sys_metrics = {}
-                clg_sys_metrics['id'] = clg_el.xpath('h:SystemIdentifier/@id', namespaces=ns)[0]
-                clg_sys_metrics['frac_load_served'] = get_single_xpath_item(clg_el, 'h:FractionCoolLoadServed/text()', float)
-                clg_sys_metrics['floor_area_served'] = get_single_xpath_item(clg_el, 'h:FloorAreaServed/text()', float)
-                clg_sys_metrics['capacity'] = get_single_xpath_item(clg_el, 'h:CoolingCapacity/text()', float)
-                all_clg_sys_metrics.append(clg_sys_metrics)
-
-            # Find out which sorting metric all of the systems have
-            sort_order_precedence = ['frac_load_served', 'floor_area_served', 'capacity']
-            for sort_col in sort_order_precedence:
-                has_all_sort_col = True
-                for clg_sys_metrics in all_clg_sys_metrics:
-                    if clg_sys_metrics[sort_col] is None:
-                        has_all_sort_col = False
-                        break
-                if has_all_sort_col:
-                    break
-
-            if not has_all_sort_col:
-                # If there's no common metric to sort them by, pick the first one.
-                clg_id = all_clg_sys_metrics[0]['id']
+    # Get the efficiency information about each cooling system
+    reso['Cooling'] = []
+    for clg_el in clg_els:
+        clg_sys_el_name = clg_el.xpath('name()', namespaces=ns)
+        if clg_sys_el_name == 'HeatPump':
+            heat_pump_type = get_single_xpath_item(clg_el, 'h:HeatPumpType/text()')
+            heat_pump_type = string.capwords(heat_pump_type)
+            efficiency = get_single_xpath_item(clg_el, 'h:AnnualCoolEfficiency[1]/h:Value/text()')
+            eff_units = get_single_xpath_item(clg_el, 'h:AnnualCoolEfficiency[1]/h:Units/text()')
+            if efficiency is None or eff_units is None:
+                reso['Cooling'].append('{} Heat Pump'.format(heat_pump_type))
             else:
-                # Otherwise, find the primary system by sorting by the appropriate metric
-                clg_id = sorted(all_clg_sys_metrics, key=lambda x: x[sort_col], reverse=True)[0]['id']
-
-            clgsys = bldg.xpath('descendant::h:*[h:SystemIdentifier/@id=$clg_id]', namespaces=ns, clg_id=clg_id)[0]
-
-    # Get the efficiency information about the cooling system
-    clg_sys_el_name = clgsys.xpath('name()', namespaces=ns)
-    if clg_sys_el_name == 'HeatPump':
-        heat_pump_type = get_single_xpath_item(clgsys, 'h:HeatPumpType/text()')
-        heat_pump_type = string.capwords(heat_pump_type)
-        efficiency = get_single_xpath_item(clgsys, 'h:AnnualCoolEfficiency[1]/h:Value/text()')
-        eff_units = get_single_xpath_item(clgsys, 'h:AnnualCoolEfficiency[1]/h:Units/text()')
-        if efficiency is None or eff_units is None:
-            reso['Cooling'] = '{} Heat Pump'.format(heat_pump_type)
+                reso['Cooling'].append('{} Heat Pump, {} {}'.format(heat_pump_type, efficiency, eff_units))
+        elif clg_sys_el_name == 'CoolingSystem':
+            clg_sys_type = get_single_xpath_item(clg_el, 'h:CoolingSystemType/text()')
+            clg_sys_type = string.capwords(clg_sys_type)
+            efficiency = get_single_xpath_item(clg_el, 'h:AnnualCoolingEfficiency[1]/h:Value/text()', float)
+            eff_units = get_single_xpath_item(clg_el, 'h:AnnualCoolingEfficiency[1]/h:Units/text()')
+            if efficiency is None or eff_units is None:
+                reso['Cooling'].append(clg_sys_type)
+            else:
+                reso['Cooling'].append('{}, {:.0f} {}'.format(clg_sys_type, efficiency, eff_units))
         else:
-            reso['Cooling'] = '{} Heat Pump, {} {}'.format(heat_pump_type, efficiency, eff_units)
-    elif clg_sys_el_name == 'CoolingSystem':
-        clg_sys_type = get_single_xpath_item(clgsys, 'h:CoolingSystemType/text()')
-        clg_sys_type = string.capwords(clg_sys_type)
-        efficiency = get_single_xpath_item(clgsys, 'h:AnnualCoolingEfficiency[1]/h:Value/text()', float)
-        eff_units = get_single_xpath_item(clgsys, 'h:AnnualCoolingEfficiency[1]/h:Units/text()')
-        if efficiency is None or eff_units is None:
-            reso['Cooling'] = clg_sys_type
-        else:
-            reso['Cooling'] = '{}, {:.0f} {}'.format(clg_sys_type, efficiency, eff_units)
-    else:
-        assert False
-
+            assert False
 
     return reso
 
