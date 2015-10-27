@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HPXML xmlns="http://hpxmlonline.com/2014/6" schemaVersion="2.1">
+    <XMLTransactionHeaderInformation>
+        <XMLType></XMLType>
+        <XMLGeneratedBy></XMLGeneratedBy>
+        <CreatedDateAndTime>2015-10-06T11:14:23.292749</CreatedDateAndTime>
+        <Transaction>create</Transaction>
+    </XMLTransactionHeaderInformation>
+    <SoftwareInfo/>
+    <Building>
+        <BuildingID id="bldg1"/>
+        <Site>
+            <SiteID id="site1"/>
+            <Address>
+                <AddressType>street</AddressType>
+                <Address1>15013 Denver West Parkway</Address1>
+                <CityMunicipality>Golden</CityMunicipality>
+                <StateCode>CO</StateCode>
+                <ZipCode>80401</ZipCode>
+            </Address>
+        </Site>
+        <ProjectStatus>
+            <EventType>audit</EventType>
+        </ProjectStatus>
+        <BuildingDetails>
+            <BuildingSummary>
+                <Site>
+                    <WalkingScore>37</WalkingScore>
+                </Site>
+                <BuildingConstruction>
+                    <ConditionedFloorArea>2400</ConditionedFloorArea>
+                    <EnergyScore>
+                        <ScoreType>US DOE Home Energy Score</ScoreType>
+                        <Score>8</Score>
+                        <extension>
+                            <AssessmentDate>2015-03-01</AssessmentDate>
+                            <URL>http://homeenergyscore.lbl.gov/</URL>
+                        </extension>
+                    </EnergyScore>
+                </BuildingConstruction>
+            </BuildingSummary>
+            <Systems>
+                <HVAC>
+                    <HVACPlant>
+                        <!-- <PrimarySystems>
+                            <PrimaryHeatingSystem idref="furnace1"/>
+                        </PrimarySystems> -->
+                        <HeatingSystem>
+                            <SystemIdentifier id="furnace1"/>
+                            <HeatingSystemType>
+                                <ElectricResistance>
+                                    <ElectricDistribution>radiant floor</ElectricDistribution>
+                                </ElectricResistance>
+                            </HeatingSystemType>
+                            <HeatingSystemFuel>electricity</HeatingSystemFuel>
+                            <HeatingCapacity>24000</HeatingCapacity>
+                            <AnnualHeatingEfficiency>
+                                <Units>AFUE</Units>
+                                <Value>0.95</Value>
+                            </AnnualHeatingEfficiency>
+                            <FractionHeatLoadServed>0.8</FractionHeatLoadServed>
+                        </HeatingSystem>
+                        <CoolingSystem>
+                            <SystemIdentifier id="centralair1"/>
+                            <CoolingSystemType>central air conditioning</CoolingSystemType>
+                            <CoolingCapacity>36000</CoolingCapacity>
+                            <FractionCoolLoadServed>0.8</FractionCoolLoadServed>
+                            <AnnualCoolingEfficiency>
+                                <Units>SEER</Units>
+                                <Value>13</Value>
+                            </AnnualCoolingEfficiency>
+                        </CoolingSystem>
+                        <HeatPump>
+                            <SystemIdentifier id="heatpump1"></SystemIdentifier>
+                            <HeatPumpType>air-to-air</HeatPumpType>
+                            <HeatingCapacity>120000</HeatingCapacity>
+                            <FractionHeatLoadServed>0.2</FractionHeatLoadServed>
+                            <FractionCoolLoadServed>0.2</FractionCoolLoadServed>
+                            <AnnualCoolEfficiency>
+                                <Units>SEER</Units>
+                                <Value>15</Value>
+                            </AnnualCoolEfficiency>
+                            <AnnualHeatEfficiency>
+                                <Units>HSPF</Units>
+                                <Value>8</Value>
+                            </AnnualHeatEfficiency>
+                        </HeatPump>
+                    </HVACPlant>
+                </HVAC>
+            </Systems>
+        </BuildingDetails>
+    </Building>
+</HPXML>

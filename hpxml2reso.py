@@ -159,7 +159,7 @@ def hpxml2reso(file_in, bldg_id=None, google_maps_lookup=False):
 
     # WalkScore
     walkscore_els = bldg.xpath(
-        'descendant::h:EnergyScore[h:ScoreType="other"][h:extension/h:ScoreType="WalkScore"]/h:Score/text()',
+        'descendant::h:WalkingScore/text()',
         namespaces=ns
     )
     if len(walkscore_els) > 0:
@@ -173,11 +173,11 @@ def hpxml2reso(file_in, bldg_id=None, google_maps_lookup=False):
     if len(hescore_els) > 0:
         hescore_el = hescore_els[0]
         reso['GreenVerification'] = OrderedDict()
-        hescore = reso['GreenVerification']['DOEHomeEnergyScore'] = OrderedDict()
-        hescore['Body'] = 'US DOE'
+        hescore = reso['GreenVerification']['Home Energy Score'] = OrderedDict()
+        hescore['Body'] = 'US Department of Energy'
         hescore['Year'] = get_single_xpath_item(hescore_el, 'h:extension/h:AssessmentDate/text()', lambda x: dt.datetime.strptime(x, '%Y-%m-%d').year)
         hescore['Metric'] = get_single_xpath_item(hescore_el, 'h:Score/text()', int)
-        hescore['URL'] = None
+        hescore['URL'] = get_single_xpath_item(hescore_el, 'h:extension/h:URL/text()')
 
     # Heating
     # Get all of the heating systems (HeatingSystem and HeatPump)
